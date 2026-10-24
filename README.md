@@ -89,32 +89,12 @@ $ curl -s -X POST localhost:5050/orders -H 'Content-Type: application/json' -d '
 HTTP 201
 ```
 
-The availability check Order makes behind the scenes, called directly:
-
-```
-$ curl -s 'localhost:5051/inventory/keyboard?quantity=2'
-{"in_stock":12,"item_id":"keyboard","requested":2,"status":"available"}
-HTTP 200
-```
-
 Order for an item that's out of stock (Inventory says unavailable):
 
 ```
 $ curl -s -X POST localhost:5050/orders -H 'Content-Type: application/json' -d '{"item_id": "mouse", "quantity": 1}'
 {"created_at":"2026-10-24T19:25:05+00:00","item_id":"mouse","order_id":"ba217c71-215e-4733-ba0c-50b422fb5cb3","quantity":1,"reason":"'mouse' is unavailable","status":"REJECTED"}
 HTTP 409
-```
-
-Unknown item and bad input:
-
-```
-$ curl -s -X POST localhost:5050/orders -H 'Content-Type: application/json' -d '{"item_id": "webcam", "quantity": 1}'
-{"error":"item 'webcam' not found"}
-HTTP 404
-
-$ curl -s -X POST localhost:5050/orders -H 'Content-Type: application/json' -d '{"item_id": "monitor"}'
-{"error":"item_id must be a non-empty string and quantity a positive integer"}
-HTTP 400
 ```
 
 ## Failure test: Inventory Service stopped
