@@ -1,0 +1,98 @@
+=== 1. Both services running ===
+
+$ curl -s 'localhost:5051/inventory/keyboard?quantity=2'
+{"in_stock":12,"item_id":"keyboard","requested":2,"status":"available"}
+HTTP 200
+
+$ curl -s -X POST localhost:5050/orders -H 'Content-Type: application/json' -d '{"item_id": "keyboard", "quantity": 2}'
+{"created_at":"2026-10-24T19:25:05+00:00","item_id":"keyboard","order_id":"900b7db2-93ba-4c3d-9015-c1bd5e465a49","quantity":2,"status":"CONFIRMED"}
+HTTP 201
+
+$ curl -s -X POST localhost:5050/orders -H 'Content-Type: application/json' -d '{"item_id": "mouse", "quantity": 1}'
+{"created_at":"2026-10-24T19:25:05+00:00","item_id":"mouse","order_id":"ba217c71-215e-4733-ba0c-50b422fb5cb3","quantity":1,"reason":"'mouse' is unavailable","status":"REJECTED"}
+HTTP 409
+
+$ curl -s -X POST localhost:5050/orders -H 'Content-Type: application/json' -d '{"item_id": "webcam", "quantity": 1}'
+{"error":"item 'webcam' not found"}
+HTTP 404
+
+$ curl -s -X POST localhost:5050/orders -H 'Content-Type: application/json' -d '{"item_id": "monitor"}'
+{"error":"item_id must be a non-empty string and quantity a positive integer"}
+HTTP 400
+
+=== 2. Inventory Service stopped ===
+$ kill 57339
+
+$ curl -s -X POST localhost:5050/orders -H 'Content-Type: application/json' -d '{"item_id": "monitor", "quantity": 1}'
+{"error":"inventory service is unavailable, order was not created"}
+HTTP 503
+
+=== 3. Order Service still running ===
+$ ps -p 57334 -o pid,command
+  PID COMMAND
+57334 /opt/homebrew/Cellar/python@3.14/3.14.7/Frameworks/Python.framework/Versions/3.14/Resources/Python.app/Contents/MacOS/Python services/order_service.py
+
+$ curl -s localhost:5050/health
+{"status":"ok"}
+HTTP 200
+
+$ curl -s localhost:5050/orders/900b7db2-93ba-4c3d-9015-c1bd5e465a49
+{"created_at":"2026-10-24T19:25:05+00:00","item_id":"keyboard","order_id":"900b7db2-93ba-4c3d-9015-c1bd5e465a49","quantity":2,"status":"CONFIRMED"}
+HTTP 200
+
+=== 4. Inventory Service restarted ===
+
+$ curl -s -X POST localhost:5050/orders -H 'Content-Type: application/json' -d '{"item_id": "monitor", "quantity": 1}'
+{"created_at":"2026-10-24T19:25:05+00:00","item_id":"monitor","order_id":"61391b95-f72a-49c2-ac55-23475665cd04","quantity":1,"status":"CONFIRMED"}
+HTTP 201
+
+=== Order Service log ===
+2026-10-24 12:25:05,063 [order] listening on :5050 -> inventory http://localhost:5051 (timeout 2.0s)
+ * Serving Flask app 'order_service'
+ * Debug mode: off
+2026-10-24 12:25:05,070 [order] WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5050
+ * Running on http://10.0.0.19:5050
+2026-10-24 12:25:05,070 [order] Press CTRL+C to quit
+2026-10-24 12:25:05,224 [order] order 900b7db2-93ba-4c3d-9015-c1bd5e465a49 CONFIRMED for keyboard x2
+2026-10-24 12:25:05,224 [order] 127.0.0.1 - - [24/Oct/2026 12:25:05] "POST /orders HTTP/1.1" 201 -
+2026-10-24 12:25:05,251 [order] order ba217c71-215e-4733-ba0c-50b422fb5cb3 REJECTED for mouse x1
+2026-10-24 12:25:05,252 [order] 127.0.0.1 - - [24/Oct/2026 12:25:05] "POST /orders HTTP/1.1" 409 -
+2026-10-24 12:25:05,260 [order] order rejected: unknown item webcam
+2026-10-24 12:25:05,260 [order] 127.0.0.1 - - [24/Oct/2026 12:25:05] "POST /orders HTTP/1.1" 404 -
+2026-10-24 12:25:05,267 [order] 127.0.0.1 - - [24/Oct/2026 12:25:05] "POST /orders HTTP/1.1" 400 -
+2026-10-24 12:25:05,276 [order] inventory unreachable at http://localhost:5051, order for monitor not created
+2026-10-24 12:25:05,276 [order] 127.0.0.1 - - [24/Oct/2026 12:25:05] "POST /orders HTTP/1.1" 503 -
+2026-10-24 12:25:05,284 [order] 127.0.0.1 - - [24/Oct/2026 12:25:05] "GET /health HTTP/1.1" 200 -
+2026-10-24 12:25:05,291 [order] 127.0.0.1 - - [24/Oct/2026 12:25:05] "GET /orders/900b7db2-93ba-4c3d-9015-c1bd5e465a49 HTTP/1.1" 200 -
+2026-10-24 12:25:05,419 [order] order 61391b95-f72a-49c2-ac55-23475665cd04 CONFIRMED for monitor x1
+2026-10-24 12:25:05,419 [order] 127.0.0.1 - - [24/Oct/2026 12:25:05] "POST /orders HTTP/1.1" 201 -
+
+=== Inventory Service log ===
+2026-10-24 12:25:05,164 [inventory] listening on :5051
+ * Serving Flask app 'inventory_service'
+ * Debug mode: off
+2026-10-24 12:25:05,170 [inventory] WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5051
+ * Running on http://10.0.0.19:5051
+2026-10-24 12:25:05,170 [inventory] Press CTRL+C to quit
+2026-10-24 12:25:05,212 [inventory] check keyboard x2 -> available (in stock: 12)
+2026-10-24 12:25:05,212 [inventory] 127.0.0.1 - - [24/Oct/2026 12:25:05] "GET /inventory/keyboard?quantity=2 HTTP/1.1" 200 -
+2026-10-24 12:25:05,223 [inventory] check keyboard x2 -> available (in stock: 12)
+2026-10-24 12:25:05,223 [inventory] 127.0.0.1 - - [24/Oct/2026 12:25:05] "GET /inventory/keyboard?quantity=2 HTTP/1.1" 200 -
+2026-10-24 12:25:05,251 [inventory] check mouse x1 -> unavailable (in stock: 0)
+2026-10-24 12:25:05,251 [inventory] 127.0.0.1 - - [24/Oct/2026 12:25:05] "GET /inventory/mouse?quantity=1 HTTP/1.1" 200 -
+2026-10-24 12:25:05,260 [inventory] check webcam x1 -> unknown item
+2026-10-24 12:25:05,260 [inventory] 127.0.0.1 - - [24/Oct/2026 12:25:05] "GET /inventory/webcam?quantity=1 HTTP/1.1" 404 -
+2026-10-24 12:25:05,373 [inventory] listening on :5051
+ * Serving Flask app 'inventory_service'
+ * Debug mode: off
+2026-10-24 12:25:05,379 [inventory] WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5051
+ * Running on http://10.0.0.19:5051
+2026-10-24 12:25:05,379 [inventory] Press CTRL+C to quit
+2026-10-24 12:25:05,419 [inventory] check monitor x1 -> available (in stock: 4)
+2026-10-24 12:25:05,419 [inventory] 127.0.0.1 - - [24/Oct/2026 12:25:05] "GET /inventory/monitor?quantity=1 HTTP/1.1" 200 -
