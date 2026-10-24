@@ -40,29 +40,9 @@ The full output from my run is in [evidence/demo_output.txt](evidence/demo_outpu
 
 ```mermaid
 flowchart LR
-    Client([Client / curl])
-
-    subgraph OS[Order Service :5050]
-        OAPI[POST /orders<br/>GET /orders/id]
-        ODB[(orders<br/>in-memory)]
-        OAPI --- ODB
-    end
-
-    subgraph IS[Inventory Service :5051]
-        IAPI[GET /inventory/item_id]
-        IDB[(stock<br/>in-memory)]
-        IAPI --- IDB
-    end
-
-    subgraph NS[Notification Service]
-        NWORK[notify user]
-    end
-
-    Client -- "1. Create order (command)" --> OAPI
-    OAPI -- "2. Is item available? (query)<br/>sync HTTP, 2s timeout" --> IAPI
-    IAPI -- "3. available / unavailable" --> OAPI
-    OAPI -- "4. order result" --> Client
-    OAPI -. "5. OrderCreated (event)<br/>async, not implemented" .-> NWORK
+    Client[Client] -->|Create order| Order[Order Service<br/>owns orders]
+    Order -->|Is item available?| Inventory[Inventory Service<br/>owns stock]
+    Order -.->|OrderCreated event| Notification[Notification Service<br/>not implemented]
 ```
 
 The Order → Inventory call is synchronous because the order can't be confirmed without the answer. Notification is shown with a dotted line because it would listen for an `OrderCreated` event (for example through a message queue) instead of being called directly. I didn't implement it since the assignment only requires the Order → Inventory interaction.
